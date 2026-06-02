@@ -1,0 +1,66 @@
+name: onda_sonora
+description: "Onda Sonora — Editor de Áudio / Audio Editor"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # Audio playback with live speed/pitch/volume control
+  just_audio: ^0.9.40
+
+  # Recording via microphone (pinned below 5.1.x to avoid record_linux ABI break)
+  record: ">=5.0.0 <5.1.0"
+
+  # FFmpeg for offline effects, export and quick-preview renders
+  ffmpeg_kit_flutter_new: ^4.2.0
+
+  # File selection from device
+  file_picker: ^8.0.0+1
+
+  # App data/cache directory paths
+  path_provider: ^2.1.5
+
+  # Share exported files
+  share_plus: ^10.0.0
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Runtime permissions
+  permission_handler: ^11.3.1
+
+  # Google Fonts (Inter)
+  google_fonts: ^6.2.1
+
+  # Equatable for model equality
+  equatable: ^2.0.5
+
+  # UUID for track/marker IDs
+  uuid: ^4.5.1
+
+dependency_overrides:
+  # record_linux 0.7.x is incompatible with record_platform_interface 1.5+.
+  # Use a local stub that properly implements the current interface.
+  # This code is never executed on Android (only compiled for tree-shaking).
+  record_linux:
+    path: packages/record_linux_stub
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.9
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
