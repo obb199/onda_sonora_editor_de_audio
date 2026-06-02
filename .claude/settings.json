@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(libreoffice --headless --convert-to txt app_edicao_musica_planejamento.docx)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(*)",
+      "Bash(flutter --version)",
+      "Bash(flutter doctor *)",
+      "Bash(flutter devices *)",
+      "Bash(flutter emulators *)",
+      "Read(//home/user/Desktop/apps/**)",
+      "Bash(flutter create *)",
+      "Bash(flutter pub *)",
+      "Bash(python3 -c ' *)",
+      "Bash(flutter analyze *)",
+      "Bash(flutter test *)",
+      "Bash(flutter build *)"
+    ],
+    "additionalDirectories": [
+      "/home/user/Desktop/apps/onda_sonora"
+    ]
+  }
+}
