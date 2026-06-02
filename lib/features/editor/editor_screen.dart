@@ -12,7 +12,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/frequency_visualizer.dart';
 import '../../widgets/waveform_painter.dart';
-import '../effects/effects_panel.dart';
+import '../effects/effects_board.dart';
 import '../export/export_screen.dart';
 import '../recorder/recorder_screen.dart';
 
@@ -30,9 +30,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
 
-    // Configure live preview whenever project loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final project = ref.read(audioProjectProvider);
       if (project != null) {
@@ -55,106 +54,108 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final playerState = ref.watch(playerStateProvider);
-    final isPlaying = playerState.value?.playing ?? false;
+    final isPlaying = ref.watch(playerStateProvider).value?.playing ?? false;
+    final editorUi = ref.watch(editorUiProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: _buildAppBar(project.fileName, isPlaying),
+      appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => _confirmClose(context),
+        ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedAppLogo(size: 26, isAnimating: isPlaying),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                project.fileName,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          // Undo
+          IconButton(
+            icon: const Icon(Icons.undo_rounded, size: 22),
+            tooltip: AppStrings.undo,
+            onPressed: project.canUndo
+                ? () => ref.read(audioProjectProvider.notifier).undo()
+                : null,
+          ),
+          // Redo
+          IconButton(
+            icon: const Icon(Icons.redo_rounded, size: 22),
+            tooltip: AppStrings.redo,
+            onPressed: project.canRedo
+                ? () => ref.read(audioProjectProvider.notifier).redo()
+                : null,
+          ),
+          // Live preview toggle
+          IconButton(
+            icon: Icon(
+              editorUi.livePreviewEnabled
+                  ? Icons.hearing_rounded
+                  : Icons.hearing_disabled_rounded,
+              size: 22,
+              color: editorUi.livePreviewEnabled
+                  ? AppColors.secondary
+                  : AppColors.textDisabled,
+            ),
+            tooltip: AppStrings.liveEffectPreview,
+            onPressed: () =>
+                ref.read(editorUiProvider.notifier).toggleLivePreview(),
+          ),
+          // Overdub
+          IconButton(
+            icon: const Icon(Icons.fiber_manual_record_rounded,
+                color: AppColors.accentRecord, size: 22),
+            tooltip: AppStrings.overdubTrack,
+            onPressed: () => _startOverdub(context),
+          ),
+          // Export
+          IconButton(
+            icon: const Icon(Icons.upload_file_rounded,
+                color: AppColors.primary, size: 22),
+            tooltip: AppStrings.export,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ExportScreen()),
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         bottom: true,
         child: Column(
           children: [
+            // Waveform + transport controls
             _WaveformSection(),
-            _LiveControlsSection(),
+            // Live preview status bar
+            _LivePreviewBar(),
             const Divider(height: 1, color: AppColors.border),
+            // Tab bar: Effects | Loop & Markers
             _buildTabBar(),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  const SingleChildScrollView(child: EffectsPanel()),
+                  // Tab 1: All effects always visible
+                  const EffectsBoard(),
+                  // Tab 2: Loop & Markers
                   const SingleChildScrollView(child: _LoopMarkersPanel()),
-                  _PresetsTab(),
                 ],
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  AppBar _buildAppBar(String fileName, bool isPlaying) {
-    final editorUi = ref.watch(editorUiProvider);
-    final project = ref.watch(audioProjectProvider);
-
-    return AppBar(
-      backgroundColor: AppColors.background,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary),
-        onPressed: () => _confirmClose(context),
-      ),
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedAppLogo(size: 28, isAnimating: isPlaying),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              fileName,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        // Undo
-        IconButton(
-          icon: const Icon(Icons.undo_rounded, color: AppColors.textSecondary),
-          tooltip: AppStrings.undo,
-          onPressed: project?.canUndo == true
-              ? () => ref.read(audioProjectProvider.notifier).undo()
-              : null,
-        ),
-        // Redo
-        IconButton(
-          icon: const Icon(Icons.redo_rounded, color: AppColors.textSecondary),
-          tooltip: AppStrings.redo,
-          onPressed: project?.canRedo == true
-              ? () => ref.read(audioProjectProvider.notifier).redo()
-              : null,
-        ),
-        // Live preview toggle
-        IconButton(
-          icon: Icon(
-            editorUi.livePreviewEnabled ? Icons.preview_rounded : Icons.preview_outlined,
-            color: editorUi.livePreviewEnabled ? AppColors.secondary : AppColors.textDisabled,
-          ),
-          tooltip: AppStrings.liveEffectPreview,
-          onPressed: () =>
-              ref.read(editorUiProvider.notifier).toggleLivePreview(),
-        ),
-        // Overdub
-        IconButton(
-          icon: const Icon(Icons.fiber_manual_record_rounded, color: AppColors.accentRecord),
-          tooltip: AppStrings.overdubTrack,
-          onPressed: () => _startOverdub(context),
-        ),
-        // Export
-        IconButton(
-          icon: const Icon(Icons.upload_rounded, color: AppColors.primary),
-          tooltip: AppStrings.export,
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ExportScreen()),
-          ),
-        ),
-      ],
     );
   }
 
@@ -166,15 +167,31 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       unselectedLabelColor: AppColors.textSecondary,
       dividerColor: Colors.transparent,
       tabs: [
-        Tab(text: AppStrings.effects),
-        Tab(text: AppStrings.loop),
-        Tab(text: AppStrings.presets),
+        Tab(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.tune_rounded, size: 16),
+              const SizedBox(width: 6),
+              Text(AppStrings.effects),
+            ],
+          ),
+        ),
+        Tab(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.loop_rounded, size: 16),
+              const SizedBox(width: 6),
+              Text(AppStrings.loop),
+            ],
+          ),
+        ),
       ],
     );
   }
 
   Future<void> _startOverdub(BuildContext context) async {
-    // Pause playback, navigate to recorder, return result as new file
     await ref.read(audioPlayerServiceProvider).pause();
     ref.read(recorderProvider.notifier).reset();
     if (!context.mounted) return;
@@ -185,10 +202,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   Future<void> _confirmClose(BuildContext context) async {
     final project = ref.read(audioProjectProvider);
-    final hasEffects = project?.effects.isNotEmpty ?? false;
+    final hasActiveEffects = project?.enabledEffects.isNotEmpty ?? false;
 
-    if (!hasEffects) {
-      Navigator.of(context).pop();
+    if (!hasActiveEffects) {
+      _doClose(context);
       return;
     }
 
@@ -196,29 +213,77 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       context: context,
       builder: (_) => AlertDialog(
         title: Text(AppStrings.close),
-        content: const Text('Fechar sem exportar? As alterações não serão salvas.'),
+        content: const Text(
+            'Fechar sem exportar? Os efeitos ativos não serão salvos.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(AppStrings.cancel),
-          ),
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(AppStrings.cancel)),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(AppStrings.close),
-          ),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(AppStrings.close)),
         ],
       ),
     );
+    if (confirmed == true && context.mounted) _doClose(context);
+  }
 
-    if (confirmed == true && context.mounted) {
-      ref.read(audioPlayerServiceProvider).stop();
-      ref.read(editorUiProvider.notifier).reset();
-      Navigator.of(context).pop();
-    }
+  void _doClose(BuildContext context) {
+    ref.read(audioPlayerServiceProvider).stop();
+    ref.read(editorUiProvider.notifier).reset();
+    Navigator.of(context).pop();
   }
 }
 
-// ─── Waveform + playback controls + loop overlay
+// ─── Live preview status bar
+
+class _LivePreviewBar extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liveEnabled = ref.watch(editorUiProvider).livePreviewEnabled;
+
+    return StreamBuilder<LivePreviewState>(
+      stream: LivePreviewService.instance.stateStream,
+      builder: (_, snap) {
+        final state = snap.data ?? LivePreviewState.idle;
+        if (!liveEnabled) return const SizedBox.shrink();
+
+        switch (state) {
+          case LivePreviewState.rendering:
+            return Container(
+              color: AppColors.surface,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(children: [
+                const SizedBox(
+                    width: 12, height: 12,
+                    child: CircularProgressIndicator(
+                        color: AppColors.secondary, strokeWidth: 2)),
+                const SizedBox(width: 8),
+                Text(AppStrings.previewRendering,
+                    style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
+              ]),
+            );
+          case LivePreviewState.playing:
+            return Container(
+              color: AppColors.surface,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Row(children: [
+                const Icon(Icons.graphic_eq_rounded,
+                    color: AppColors.secondary, size: 14),
+                const SizedBox(width: 8),
+                Text(AppStrings.previewReady,
+                    style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
+              ]),
+            );
+          default:
+            return const SizedBox.shrink();
+        }
+      },
+    );
+  }
+}
+
+// ─── Waveform + playback
 
 class _WaveformSection extends ConsumerWidget {
   @override
@@ -232,60 +297,53 @@ class _WaveformSection extends ConsumerWidget {
         ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
         : 0.0;
 
-    final samplesAsync = ref.watch(waveformSamplesProvider(project.filePath));
-    final samples = samplesAsync.value ?? [];
+    final samples = ref.watch(waveformSamplesProvider(project.filePath)).value ?? [];
     final editorUi = ref.watch(editorUiProvider);
-    final playerState = ref.watch(playerStateProvider);
-    final isPlaying = playerState.value?.playing ?? false;
+    final isPlaying = ref.watch(playerStateProvider).value?.playing ?? false;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Waveform
           Stack(
             children: [
               WaveformView(
                 samples: samples,
                 progress: progress,
-                height: 80,
+                height: 72,
                 loopRegion: editorUi.loopRegion,
                 markers: editorUi.showMarkers ? editorUi.markers : [],
                 totalDurationMs: duration.inMilliseconds,
-                onSeek: (p) {
-                  final target = Duration(
-                    milliseconds: (p * duration.inMilliseconds).toInt(),
-                  );
-                  ref.read(audioPlayerServiceProvider).seek(target);
-                },
+                onSeek: (p) => ref.read(audioPlayerServiceProvider).seek(
+                    Duration(milliseconds: (p * duration.inMilliseconds).toInt())),
               ),
-              // Loop toggle pill
               Positioned(
-                top: 4,
-                right: 4,
+                top: 4, right: 4,
                 child: _LoopPill(isLooping: editorUi.isLooping),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          // Time + frequency
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(_fmt(position),
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                  style: const TextStyle(color: AppColors.textDisabled, fontSize: 10)),
               if (editorUi.loopRegion != null)
                 Text(
-                  '⟳ ${_fmt(editorUi.loopRegion!.startDuration)} – ${_fmt(editorUi.loopRegion!.endDuration)}',
-                  style: const TextStyle(color: AppColors.secondary, fontSize: 11),
+                  '⟳ ${_fmt(editorUi.loopRegion!.startDuration)}–${_fmt(editorUi.loopRegion!.endDuration)}',
+                  style: const TextStyle(color: AppColors.secondary, fontSize: 10),
                 ),
               Text(_fmt(duration),
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                  style: const TextStyle(color: AppColors.textDisabled, fontSize: 10)),
             ],
           ),
           const SizedBox(height: 4),
-          FrequencyVisualizer(isActive: isPlaying, height: 48),
-          const SizedBox(height: 8),
-          _PlaybackControls(),
+          FrequencyVisualizer(isActive: isPlaying, height: 36),
+          const SizedBox(height: 4),
+          _TransportRow(),
         ],
       ),
     );
@@ -307,8 +365,7 @@ class _LoopPill extends ConsumerWidget {
     return GestureDetector(
       onTap: () {
         ref.read(editorUiProvider.notifier).toggleLoop();
-        final player = ref.read(audioPlayerServiceProvider);
-        player.setLoopMode(
+        ref.read(audioPlayerServiceProvider).setLoopMode(
             ref.read(editorUiProvider).isLooping ? LoopMode.one : LoopMode.off);
       },
       child: Container(
@@ -325,7 +382,7 @@ class _LoopPill extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.loop_rounded,
-                size: 12,
+                size: 11,
                 color: isLooping ? AppColors.secondary : AppColors.textDisabled),
             const SizedBox(width: 4),
             Text(
@@ -343,46 +400,58 @@ class _LoopPill extends ConsumerWidget {
   }
 }
 
-class _PlaybackControls extends ConsumerWidget {
+class _TransportRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playerState = ref.watch(playerStateProvider);
     final isPlaying = playerState.value?.playing ?? false;
-    final isLoading =
-        playerState.value?.processingState == ProcessingState.loading ||
-            playerState.value?.processingState == ProcessingState.buffering;
-
+    final isLoading = playerState.value?.processingState == ProcessingState.loading ||
+        playerState.value?.processingState == ProcessingState.buffering;
     final player = ref.read(audioPlayerServiceProvider);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        IconButton(
-          icon: const Icon(Icons.skip_previous_rounded),
-          color: AppColors.textSecondary,
-          iconSize: 28,
-          onPressed: () => player.seek(Duration.zero),
+        _TransportBtn(
+          icon: Icons.skip_previous_rounded,
+          size: 28,
+          onTap: () => player.seek(Duration.zero),
         ),
-        const SizedBox(width: 8),
-        _PlayPauseButton(
+        const SizedBox(width: 12),
+        _BigPlayPause(
           isPlaying: isPlaying,
           isLoading: isLoading,
           onTap: () => isPlaying ? player.pause() : player.play(),
         ),
-        const SizedBox(width: 8),
-        IconButton(
-          icon: const Icon(Icons.stop_rounded),
-          color: AppColors.textSecondary,
-          iconSize: 28,
-          onPressed: () => player.stop(),
+        const SizedBox(width: 12),
+        _TransportBtn(
+          icon: Icons.stop_rounded,
+          size: 28,
+          onTap: () => player.stop(),
         ),
       ],
     );
   }
 }
 
-class _PlayPauseButton extends StatelessWidget {
-  const _PlayPauseButton({
+class _TransportBtn extends StatelessWidget {
+  const _TransportBtn({required this.icon, required this.size, required this.onTap});
+  final IconData icon;
+  final double size;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, size: size, color: AppColors.textSecondary),
+      onPressed: onTap,
+      padding: EdgeInsets.zero,
+    );
+  }
+}
+
+class _BigPlayPause extends StatelessWidget {
+  const _BigPlayPause({
     required this.isPlaying,
     required this.isLoading,
     required this.onTap,
@@ -396,195 +465,33 @@ class _PlayPauseButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 64,
-        height: 64,
+        width: 56,
+        height: 56,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [AppColors.primary, AppColors.primaryLight],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(32),
+          shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withAlpha(80),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
+                color: AppColors.primary.withAlpha(80),
+                blurRadius: 12,
+                offset: const Offset(0, 3))
           ],
         ),
         child: isLoading
             ? const Center(
                 child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                ),
-              )
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)))
             : Icon(
                 isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                 color: Colors.white,
-                size: 36,
+                size: 30,
               ),
       ),
-    );
-  }
-}
-
-// ─── Live controls (speed, pitch, volume) with live-preview trigger
-
-class _LiveControlsSection extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final project = ref.watch(audioProjectProvider);
-    if (project == null) return const SizedBox.shrink();
-
-    final livePreviewEnabled = ref.watch(editorUiProvider).livePreviewEnabled;
-    final notifier = ref.read(audioProjectProvider.notifier);
-    final livePreview = LivePreviewService.instance;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: const Border.fromBorderSide(BorderSide(color: AppColors.border)),
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.bolt_rounded, color: AppColors.secondary, size: 16),
-                const SizedBox(width: 6),
-                Text(AppStrings.livePreview,
-                    style: const TextStyle(
-                        color: AppColors.secondary, fontSize: 12, fontWeight: FontWeight.w600)),
-                const Spacer(),
-                // Live preview indicator (only shown when enabled)
-                if (livePreviewEnabled)
-                StreamBuilder<LivePreviewState>(
-                  stream: livePreview.stateStream,
-                  builder: (_, snap) {
-                    final state = snap.data ?? LivePreviewState.idle;
-                    if (state == LivePreviewState.rendering) {
-                      return Row(children: [
-                        const SizedBox(
-                            width: 10,
-                            height: 10,
-                            child: CircularProgressIndicator(
-                                color: AppColors.secondary, strokeWidth: 2)),
-                        const SizedBox(width: 6),
-                        Text(AppStrings.previewRendering,
-                            style: const TextStyle(
-                                color: AppColors.secondary, fontSize: 10)),
-                      ]);
-                    }
-                    if (state == LivePreviewState.playing) {
-                      return Row(children: [
-                        const Icon(Icons.graphic_eq_rounded,
-                            color: AppColors.secondary, size: 14),
-                        const SizedBox(width: 4),
-                        Text(AppStrings.previewReady,
-                            style: const TextStyle(
-                                color: AppColors.secondary, fontSize: 10)),
-                      ]);
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _LiveControl(
-                    icon: Icons.speed_rounded,
-                    label: AppStrings.speed,
-                    value: project.speed,
-                    min: 0.25,
-                    max: 4.0,
-                    displayValue: '${project.speed.toStringAsFixed(2)}x',
-                    onChanged: (v) => notifier.setSpeed(v),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _LiveControl(
-                    icon: Icons.music_note_rounded,
-                    label: AppStrings.pitch,
-                    value: project.pitch,
-                    min: 0.5,
-                    max: 2.0,
-                    displayValue: '${project.pitch.toStringAsFixed(2)}x',
-                    onChanged: (v) => notifier.setPitch(v),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _LiveControl(
-                    icon: Icons.volume_up_rounded,
-                    label: AppStrings.volume,
-                    value: project.volume,
-                    min: 0.0,
-                    max: 1.0,
-                    displayValue: '${(project.volume * 100).toInt()}%',
-                    onChanged: (v) => notifier.setVolume(v),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LiveControl extends StatelessWidget {
-  const _LiveControl({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.displayValue,
-    required this.onChanged,
-  });
-  final IconData icon;
-  final String label;
-  final double value;
-  final double min;
-  final double max;
-  final String displayValue;
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Icon(icon, color: AppColors.primary, size: 18),
-        const SizedBox(height: 2),
-        Text(label,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
-            textAlign: TextAlign.center),
-        Text(displayValue,
-            style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.bold)),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 2,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-          ),
-          child: Slider(value: value.clamp(min, max), min: min, max: max, onChanged: onChanged),
-        ),
-      ],
     );
   }
 }
@@ -607,28 +514,20 @@ class _LoopMarkersPanel extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ─── Loop region
-          _SectionHeader(AppStrings.loopRegion, Icons.loop_rounded),
-          const SizedBox(height: 8),
+          _SectionLabel(AppStrings.loopRegion, Icons.loop_rounded, AppColors.secondary),
+          const SizedBox(height: 10),
           if (editorUi.loopRegion != null)
-            _LoopRegionCard(
-              region: editorUi.loopRegion!,
-              duration: duration,
-              onClear: notifier.clearLoopRegion,
-              notifier: notifier,
-            )
+            _LoopActiveCard(
+                region: editorUi.loopRegion!,
+                duration: duration,
+                onClear: notifier.clearLoopRegion)
           else
-            _LoopSetupCard(
-              position: pos,
-              duration: duration,
-              notifier: notifier,
-            ),
+            _LoopSetupCard(duration: duration, notifier: notifier),
           const SizedBox(height: 24),
 
-          // ─── Markers
           Row(
             children: [
-              _SectionHeader(AppStrings.markers, Icons.flag_rounded),
+              _SectionLabel(AppStrings.markers, Icons.flag_rounded, AppColors.accent),
               const Spacer(),
               TextButton.icon(
                 icon: const Icon(Icons.add_rounded, size: 16),
@@ -639,34 +538,28 @@ class _LoopMarkersPanel extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           if (editorUi.markers.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text(
-                  'Nenhum marcador. Toque em + para adicionar.',
-                  style: const TextStyle(
-                      color: AppColors.textDisabled, fontSize: 13),
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Nenhum marcador. Toque em + para adicionar.',
+                style: const TextStyle(color: AppColors.textDisabled, fontSize: 13),
               ),
             )
           else
-            ...editorUi.markers.map((m) => _MarkerTile(
-                  marker: m,
-                  duration: duration,
-                  onDelete: () => notifier.removeMarker(m.id),
-                  onTap: () {
-                    ref
-                        .read(audioPlayerServiceProvider)
-                        .seek(Duration(milliseconds: m.timeMs));
-                  },
-                )),
+            ...editorUi.markers.map(
+              (m) => _MarkerTile(
+                marker: m,
+                onDelete: () => notifier.removeMarker(m.id),
+                onTap: () => ref.read(audioPlayerServiceProvider).seek(
+                    Duration(milliseconds: m.timeMs)),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Future<void> _addMarker(
-      BuildContext context, WidgetRef ref, Duration position) async {
+  Future<void> _addMarker(BuildContext context, WidgetRef ref, Duration position) async {
     final ctrl = TextEditingController(
         text: 'Marcador ${ref.read(editorUiProvider).markers.length + 1}');
     final name = await showDialog<String>(
@@ -679,11 +572,8 @@ class _LoopMarkersPanel extends ConsumerWidget {
           autofocus: true,
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context), child: Text(AppStrings.cancel)),
-          TextButton(
-              onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-              child: Text(AppStrings.save)),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(AppStrings.cancel)),
+          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim()), child: Text(AppStrings.save)),
         ],
       ),
     );
@@ -693,15 +583,46 @@ class _LoopMarkersPanel extends ConsumerWidget {
   }
 }
 
-class _LoopSetupCard extends StatelessWidget {
-  const _LoopSetupCard({
-    required this.position,
-    required this.duration,
-    required this.notifier,
-  });
-  final Duration position;
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label, this.icon, this.color);
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 8),
+        Text(label,
+            style: TextStyle(
+                color: color, fontSize: 14, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+}
+
+class _LoopSetupCard extends StatefulWidget {
+  const _LoopSetupCard({required this.duration, required this.notifier});
   final Duration duration;
   final EditorUiNotifier notifier;
+
+  @override
+  State<_LoopSetupCard> createState() => _LoopSetupCardState();
+}
+
+class _LoopSetupCardState extends State<_LoopSetupCard> {
+  double _start = 0.0;
+  double _end = 1.0;
+
+  String _fmt(double ratio) {
+    final ms = (ratio * widget.duration.inMilliseconds).toInt();
+    final d = Duration(milliseconds: ms);
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -714,15 +635,31 @@ class _LoopSetupCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            'Defina o início e o fim para criar uma região de loop.',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-            textAlign: TextAlign.center,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Início: ${_fmt(_start)}',
+                  style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
+              Text('Fim: ${_fmt(_end)}',
+                  style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
+            ],
           ),
-          const SizedBox(height: 12),
-          _LoopRangePicker(
-            totalMs: duration.inMilliseconds,
-            onSet: (start, end) => notifier.setLoopRegion(LoopRegion(startMs: start, endMs: end)),
+          RangeSlider(
+            values: RangeValues(_start, _end),
+            activeColor: AppColors.secondary,
+            inactiveColor: AppColors.border,
+            onChanged: (v) => setState(() {
+              _start = v.start;
+              _end = v.end;
+            }),
+            onChangeEnd: (_) {
+              if (widget.duration.inMilliseconds > 0) {
+                widget.notifier.setLoopRegion(LoopRegion(
+                  startMs: (_start * widget.duration.inMilliseconds).toInt(),
+                  endMs: (_end * widget.duration.inMilliseconds).toInt(),
+                ));
+              }
+            },
           ),
         ],
       ),
@@ -730,73 +667,12 @@ class _LoopSetupCard extends StatelessWidget {
   }
 }
 
-class _LoopRangePicker extends StatefulWidget {
-  const _LoopRangePicker({required this.totalMs, required this.onSet});
-  final int totalMs;
-  final void Function(int start, int end) onSet;
-
-  @override
-  State<_LoopRangePicker> createState() => _LoopRangePickerState();
-}
-
-class _LoopRangePickerState extends State<_LoopRangePicker> {
-  double _start = 0.0;
-  double _end = 1.0;
-
-  String _fmt(double ratio) {
-    final ms = (ratio * widget.totalMs).toInt();
-    final d = Duration(milliseconds: ms);
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('${AppStrings.setLoopStart}: ${_fmt(_start)}',
-                style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
-            Text('${AppStrings.setLoopEnd}: ${_fmt(_end)}',
-                style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
-          ],
-        ),
-        RangeSlider(
-          values: RangeValues(_start, _end),
-          activeColor: AppColors.secondary,
-          inactiveColor: AppColors.border,
-          onChanged: (v) => setState(() {
-            _start = v.start;
-            _end = v.end;
-          }),
-          onChangeEnd: (_) {
-            if (widget.totalMs > 0) {
-              widget.onSet(
-                (_start * widget.totalMs).toInt(),
-                (_end * widget.totalMs).toInt(),
-              );
-            }
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _LoopRegionCard extends StatelessWidget {
-  const _LoopRegionCard({
-    required this.region,
-    required this.duration,
-    required this.onClear,
-    required this.notifier,
-  });
+class _LoopActiveCard extends StatelessWidget {
+  const _LoopActiveCard(
+      {required this.region, required this.duration, required this.onClear});
   final LoopRegion region;
   final Duration duration;
   final VoidCallback onClear;
-  final EditorUiNotifier notifier;
 
   String _fmt(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -807,10 +683,10 @@ class _LoopRegionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.secondary.withAlpha(15),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.secondary.withAlpha(80)),
       ),
       child: Row(
@@ -818,17 +694,9 @@ class _LoopRegionCard extends StatelessWidget {
           const Icon(Icons.loop_rounded, color: AppColors.secondary),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(AppStrings.loopRegion,
-                    style: const TextStyle(
-                        color: AppColors.secondary, fontWeight: FontWeight.w600)),
-                Text(
-                  '${_fmt(region.startDuration)} → ${_fmt(region.endDuration)}',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                ),
-              ],
+            child: Text(
+              '${_fmt(region.startDuration)} → ${_fmt(region.endDuration)}',
+              style: const TextStyle(color: AppColors.secondary, fontSize: 14),
             ),
           ),
           TextButton(
@@ -843,22 +711,15 @@ class _LoopRegionCard extends StatelessWidget {
 }
 
 class _MarkerTile extends StatelessWidget {
-  const _MarkerTile({
-    required this.marker,
-    required this.duration,
-    required this.onDelete,
-    required this.onTap,
-  });
+  const _MarkerTile(
+      {required this.marker, required this.onDelete, required this.onTap});
   final CueMarker marker;
-  final Duration duration;
   final VoidCallback onDelete;
   final VoidCallback onTap;
 
-  String get _timeLabel {
+  String get _time {
     final d = Duration(milliseconds: marker.timeMs);
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
+    return '${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}';
   }
 
   @override
@@ -867,113 +728,20 @@ class _MarkerTile extends StatelessWidget {
       onTap: onTap,
       contentPadding: EdgeInsets.zero,
       leading: Container(
-        width: 36,
-        height: 36,
+        width: 34, height: 34,
         decoration: BoxDecoration(
-          color: AppColors.accent.withAlpha(30),
-          borderRadius: BorderRadius.circular(10),
-        ),
+            color: AppColors.accent.withAlpha(30),
+            borderRadius: BorderRadius.circular(9)),
         child: const Icon(Icons.flag_rounded, color: AppColors.accent, size: 18),
       ),
       title: Text(marker.name,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-      subtitle: Text(_timeLabel,
+      subtitle: Text(_time,
           style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
       trailing: IconButton(
         icon: const Icon(Icons.delete_outline, color: AppColors.errorColor, size: 18),
         onPressed: onDelete,
       ),
     );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.label, this.icon);
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.primary, size: 18),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─── Presets tab
-
-class _PresetsTab extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.bookmark_outline_rounded,
-                color: AppColors.textDisabled, size: 64),
-            const SizedBox(height: 16),
-            Text(AppStrings.presets,
-                style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text('Salve combinações de efeitos aqui.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.save_rounded),
-              label: Text(AppStrings.savePreset),
-              onPressed: () => _savePreset(context, ref),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _savePreset(BuildContext context, WidgetRef ref) async {
-    final project = ref.read(audioProjectProvider);
-    if (project == null || project.effects.isEmpty) return;
-
-    final ctrl = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(AppStrings.savePreset),
-        content: TextField(
-          controller: ctrl,
-          decoration: InputDecoration(
-              hintText: AppStrings.presetNameHint, labelText: AppStrings.presetName),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(AppStrings.cancel)),
-          TextButton(
-              onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-              child: Text(AppStrings.save)),
-        ],
-      ),
-    );
-
-    if (name != null && name.isNotEmpty && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                '${AppStrings.presets}: "$name" ${AppStrings.success.toLowerCase()}')),
-      );
-    }
   }
 }

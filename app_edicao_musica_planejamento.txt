@@ -1,0 +1,553 @@
+﻿🎵
+App de Edição de Música
+Documento de Planejamento de Funcionalidades e Arquitetura
+Plataforma: Flutter (Android & iOS)
+Versão 1.0 — Junho de 2026
+
+Sumário
+TOC \h \o "1-2"
+
+
+1. Visão Geral
+Este documento reúne o planejamento completo de um aplicativo de edição de música desenvolvido em Flutter, com suporte para Android e iOS. O objetivo é entregar um editor de áudio capaz tanto de aplicar efeitos em tempo real (preview ao vivo, ajustando parâmetros e ouvindo a mudança na hora) quanto de processar e exportar arquivos de áudio com os efeitos aplicados de forma definitiva.
+O app combina funcionalidades de manipulação de áudio que vão desde operações simples de DSP (Digital Signal Processing) até recursos avançados que dependem de inteligência artificial, como separação de faixas e correção automática de afinação.
+1.1 Os Dois Modos de Operação
+A decisão de arquitetura mais importante do projeto é que o app oferece duas formas de processamento de áudio, que utilizam motores diferentes por baixo dos panos:
+    • Tempo real (live): o usuário mexe em um controle (ex.: knob de velocidade) e ouve a alteração instantaneamente, enquanto o áudio toca. Exige um motor de áudio nativo de baixa latência.
+    • Por arquivo (offline/export): o usuário aplica os efeitos escolhidos e o app gera um novo arquivo de áudio com tudo processado. Não precisa ser instantâneo, mas precisa ter qualidade final.
+
+Princípio central de design
+Sempre que possível, o mesmo algoritmo de DSP (escrito em C++) deve servir aos dois modos: rodando pedaço por pedaço em tempo real, e rodando sobre o buffer inteiro na exportação.
+Isso garante que o som do preview seja idêntico ao do arquivo final — evitando frustração do usuário.
+
+2. Arquitetura Técnica
+A arquitetura é organizada em camadas, onde o Flutter atua sempre como a camada de interface e os controles, enquanto o processamento de áudio pesado é delegado a camadas inferiores.
+2.1 Camadas do Sistema
+Camada
+Responsabilidade
+Flutter (UI)
+Interface do usuário, controles (knobs, sliders), visualização de forma de onda, navegação, gerenciamento de estado da edição.
+Camada nativa (C++)
+O coração do app. Contém os algoritmos de DSP compartilhados entre tempo real e exportação. Conectada ao Flutter via FFI (dart:ffi).
+Motor tempo real
+Captura e reprodução de áudio com baixa latência: Oboe no Android, AVAudioEngine / Core Audio no iOS.
+Motor por arquivo
+Processamento offline para exportação. Pode usar o mesmo C++ rodando sobre o buffer completo, ou ffmpeg para operações padrão.
+
+2.2 Tecnologias e Pacotes Recomendados
+Necessidade
+Solução
+Observação
+Reproduzir áudio
+just_audio, audioplayers
+Inclui velocidade e pitch básicos em Android/iOS.
+Gravar microfone
+record, flutter_sound
+Captura de áudio para gravação e overdub.
+Forma de onda
+audio_waveforms, just_waveform
+Visualização do áudio.
+Espectro / FFT
+fftea
+FFT em Dart puro para visualização de frequências.
+Edição offline
+ffmpeg_kit_flutter
+Corte, junção, conversão de formato, muitos efeitos via filtros.
+Tempo real (baixa latência)
+Oboe (Android) + Core Audio (iOS) via FFI
+Necessário para preview ao vivo de verdade.
+Pitch/tempo alta qualidade
+SoundTouch ou Rubber Band (C++ via FFI)
+Rubber Band tem licença comercial paga.
+Suite de efeitos mobile
+Superpowered (opcional)
+Conjunto de efeitos pensado para mobile.
+
+Sobre licenças
+Rubber Band exige licença comercial para uso em produto pago — avaliar antes de adotar.
+SoundTouch (LGPL) e ffmpeg são alternativas mais permissivas para começar.
+
+3. Catálogo de Funcionalidades
+As funcionalidades abaixo estão agrupadas por categoria. Cada uma indica sua complexidade de implementação e em qual(is) modo(s) faz mais sentido — tempo real, por arquivo, ou ambos.
+Legenda de complexidade: 🟢 Fácil (bibliotecas/DSP prontos) · 🟡 Médio (algoritmo elaborado, sem IA) · 🔴 Avançado (requer IA / modelos treinados).
+
+3.1 Manipulação de Áudio
+Funcionalidade
+Complex.
+Modo
+Descrição
+Mudar velocidade
+🟢 Fácil
+Ambos
+Acelerar ou desacelerar a faixa, com ou sem alteração de pitch.
+Mudar tonalidade (pitch shift)
+🟢 Fácil
+Ambos
+Subir ou descer o tom sem mudar a velocidade.
+Delay / eco
+🟢 Fácil
+Ambos
+Repetições do som com atraso ajustável.
+Reverb
+🟢 Fácil
+Ambos
+Simula a ambientação de salas e espaços.
+Equalizador
+🟢 Fácil
+Ambos
+Controle de graves, médios e agudos por bandas.
+Volume / normalização
+🟢 Fácil
+Ambos
+Ajuste de ganho e nivelamento automático.
+Fade in / fade out
+🟢 Fácil
+Ambos
+Entrada e saída suaves do áudio.
+Reverse (inverter)
+🟢 Fácil
+Arquivo
+Toca o áudio de trás para frente.
+Pan (esquerda/direita)
+🟢 Fácil
+Ambos
+Posicionamento estéreo do som.
+Filtros (low/high-pass)
+🟢 Fácil
+Ambos
+Corta frequências acima ou abaixo de um ponto.
+Compressor
+🟡 Médio
+Ambos
+Controla a dinâmica; exige boa lógica de envelope.
+
+3.2 Efeitos Criativos
+Funcionalidade
+Complex.
+Modo
+Descrição
+Distorção / overdrive
+🟢 Fácil
+Ambos
+Satura o sinal para um som mais agressivo.
+Chorus
+🟢 Fácil
+Ambos
+Engrossa o som duplicando e desafinando levemente.
+Flanger
+🟢 Fácil
+Ambos
+Efeito de varredura metálica característico.
+Phaser
+🟢 Fácil
+Ambos
+Modulação de fase para movimento no som.
+Bitcrusher
+🟢 Fácil
+Ambos
+Reduz a resolução para um efeito lo-fi.
+Vocoder
+🟡 Médio
+Ambos
+Cruza voz com instrumento; algoritmo mais elaborado.
+
+3.3 Edição e Estrutura
+Funcionalidade
+Complex.
+Modo
+Descrição
+Cortar / copiar / colar
+🟢 Fácil
+Arquivo
+Edição de trechos da faixa.
+Loop de seções
+🟢 Fácil
+Ambos
+Repetir um trecho selecionado.
+Crossfade entre faixas
+🟢 Fácil
+Arquivo
+Transição suave entre dois áudios.
+Marcadores / cue points
+🟡 Médio
+Ambos
+Pontos de referência na linha do tempo.
+Metrônomo / BPM
+🟡 Médio
+Tempo real
+Detecção de andamento via onset detection.
+
+3.4 Mixagem
+Funcionalidade
+Complex.
+Modo
+Descrição
+Múltiplas camadas (tracks)
+🟡 Médio
+Ambos
+Várias faixas tocando simultaneamente.
+Controle de pan por faixa
+🟢 Fácil
+Ambos
+Posicionamento estéreo individual.
+Automação de volume/efeitos
+🟡 Médio
+Ambos
+Mudança de parâmetros ao longo do tempo.
+
+3.5 Gravação e Entrada
+Funcionalidade
+Complex.
+Modo
+Descrição
+Gravar via microfone
+🟢 Fácil
+Tempo real
+Captura de áudio do dispositivo.
+Overdub
+🟡 Médio
+Tempo real
+Gravar por cima de uma faixa existente.
+Importar de várias fontes
+🟢 Fácil
+Arquivo
+Arquivos locais, nuvem, etc.
+
+3.6 Visualização
+Funcionalidade
+Complex.
+Modo
+Descrição
+Forma de onda
+🟢 Fácil
+Ambos
+Representação visual da amplitude.
+Espectrograma
+🟢 Fácil
+Ambos
+Visualização de frequências ao longo do tempo.
+Visualizador de frequências
+🟢 Fácil
+Tempo real
+Barras de espectro em tempo real (FFT).
+
+3.7 Exportação e Utilidades
+Funcionalidade
+Complex.
+Modo
+Descrição
+Exportar formatos (MP3/WAV/FLAC)
+🟢 Fácil
+Arquivo
+Salvar com qualidade configurável.
+Compartilhar em redes
+🟢 Fácil
+Arquivo
+Exportar direto para redes sociais.
+Presets de efeitos
+🟢 Fácil
+Ambos
+Salvar combinações de efeitos.
+Desfazer / refazer
+🟢 Fácil
+Ambos
+Histórico de edições.
+
+3.8 Funcionalidades com Inteligência Artificial
+Estas funcionalidades exigem modelos treinados e maior poder de processamento. Podem rodar no dispositivo (on-device) ou em servidor (nuvem), dependendo do desempenho desejado e do custo.
+Funcionalidade
+Complex.
+Descrição
+Separação de faixas (stems)
+🔴 Avançado
+Isolar vocal, bateria, baixo, etc. Modelos como Demucs ou Spleeter.
+Remover vocal (karaokê limpo)
+🔴 Avançado
+Versão de alta qualidade via IA. A versão simples por inversão de fase é fácil, mas tem qualidade baixa.
+Pitch correction automático
+🔴 Avançado
+Afinação inteligente estilo Auto-Tune.
+Mastering automático
+🔴 Avançado
+Ajuste de mix e masterização por IA.
+Geração de acompanhamento
+🔴 Avançado
+Criar instrumentos/bases automaticamente.
+Transcrição para MIDI/partitura
+🔴 Avançado
+Converter áudio em notação musical.
+Redução de ruído avançada
+🔴 Avançado
+Limpeza inteligente do sinal.
+
+Nota sobre 'remover vocal'
+A remoção simples (inversão de fase do canal central) é fácil de implementar, mas a qualidade é baixa.
+A versão limpa via IA é o que realmente faz diferença para o usuário — vale priorizar se karaokê for um foco do app.
+
+4. Viabilidade no Flutter
+O Flutter sozinho não processa áudio — ele depende de pacotes e, em vários casos, de código nativo por baixo. É importante entender o que cada caminho entrega.
+4.1 O que funciona bem com pacotes prontos
+    • Reprodução, gravação, velocidade, pitch básico, volume, fade e loop via just_audio e record.
+    • Visualização de forma de onda, espectrograma e FFT via audio_waveforms e fftea.
+    • Corte, junção, conversão e muitos efeitos offline via ffmpeg_kit_flutter.
+4.2 O que exige mais esforço
+Os efeitos de processamento em tempo real (reverb, delay, EQ, chorus, distorção, filtros, bitcrusher) não têm pacote Flutter pronto e de boa qualidade. Há três caminhos:
+    1. ffmpeg: faz a maioria dos efeitos, mas de forma offline (gera um novo arquivo). Suficiente para um editor focado em exportação.
+    2. Código nativo: escrever o DSP em C/C++ via FFI, ou usar APIs nativas (Oboe no Android, AVAudioEngine no iOS). Caminho para tempo real de verdade.
+    3. Bibliotecas C via FFI: integrar SoundTouch, Rubber Band ou Superpowered.
+4.3 Resumo da decisão
+
+Mais rápido de lançar
+Melhor a longo prazo
+Tempo real
+Apenas o que o just_audio entrega (velocidade, pitch, volume)
+Motor C++ nativo (Oboe / Superpowered)
+Por arquivo
+ffmpeg
+Mesmo código C++ rodado sobre o buffer
+
+Caminho híbrido pragmático
+Fase inicial: tempo real básico com just_audio + resto dos efeitos offline via ffmpeg.
+Depois: migrar os efeitos pesados para C++ conforme o app cresce.
+Desvantagem temporária: preview e resultado final podem soar levemente diferentes, pois vêm de motores distintos.
+
+5. Roadmap de Implementação
+Sugestão de faseamento, do MVP enxuto até o produto completo, priorizando entregar valor rápido e adiar a complexidade do C++ nativo.
+Fase 1 — MVP (Flutter + ffmpeg)
+Objetivo: lançar rápido um editor funcional focado em aplicar efeitos e exportar.
+    • Reprodução e import de arquivos (just_audio).
+    • Mudar velocidade, pitch e volume (preview básico ao vivo).
+    • Delay, reverb, EQ, filtros, distorção e reverse via ffmpeg (offline).
+    • Forma de onda e visualização de frequências.
+    • Exportar MP3/WAV, presets, desfazer/refazer e compartilhar.
+Fase 2 — Tempo real de verdade (motor C++)
+Objetivo: efeitos ao vivo com baixa latência e som idêntico ao export.
+    • Integrar Oboe (Android) e Core Audio/AVAudioEngine (iOS) via FFI.
+    • Portar os efeitos principais para C++ compartilhado (preview = export).
+    • Gravação via microfone, overdub e múltiplas faixas.
+    • Chorus, flanger, phaser, bitcrusher, compressor e automação.
+Fase 3 — Recursos com IA
+Objetivo: diferenciais competitivos que exigem modelos treinados.
+    • Separação de faixas (stems) e remoção de vocal limpa.
+    • Pitch correction automático estilo Auto-Tune.
+    • Mastering automático e redução de ruído avançada.
+    • Avaliar processamento on-device vs. nuvem por custo e desempenho.
+
+Pergunta que define o ritmo do projeto
+Quantos efeitos precisam de preview ao vivo de verdade?
+Se forem poucos (só velocidade e pitch), a Fase 1 já lança um produto sólido.
+Se a lista inteira precisa ser ao vivo, vale investir no motor C++ (Fase 2) desde o início.
+
+6. Implementação Detalhada — Fase 1 (MVP)
+Esta seção descreve, passo a passo, como construir o MVP usando Flutter + ffmpeg, sem código nativo. A meta é um editor que reproduz, aplica efeitos e exporta — com preview ao vivo apenas para os parâmetros que o just_audio já oferece nativamente (velocidade, pitch e volume).
+6.1 Estrutura do Projeto
+Organização de pastas sugerida, separando interface, lógica de áudio e modelos de dados desde o início:
+Estrutura de pastas
+lib/
+├── main.dart
+├── core/
+│   ├── audio_player_service.dart   # wrapper do just_audio
+│   └── ffmpeg_service.dart         # monta e roda comandos ffmpeg
+├── models/
+│   ├── audio_project.dart          # faixa atual, caminho, duração
+│   └── effect_chain.dart           # lista de efeitos + parâmetros
+├── features/
+│   ├── editor/                     # tela principal de edição
+│   ├── effects/                    # painéis de cada efeito
+│   └── export/                     # tela de exportação
+└── widgets/
+    └── waveform_view.dart          # forma de onda
+
+6.2 Dependências (pubspec.yaml)
+pubspec.yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  just_audio: ^0.9.40        # reprodução + velocidade/pitch/volume
+  record: ^5.1.0             # gravação via microfone
+  ffmpeg_kit_flutter: ^6.0.3 # efeitos offline e exportação
+  audio_waveforms: ^1.0.5    # visualização de forma de onda
+  fftea: ^1.5.0              # FFT para o visualizador de frequências
+  file_picker: ^8.0.0        # importar arquivos
+  path_provider: ^2.1.0      # caminhos de saída
+  share_plus: ^9.0.0         # compartilhar o resultado
+  riverpod: ^2.5.0           # gerenciamento de estado
+
+6.3 Preview ao Vivo (velocidade, pitch, volume)
+Esses três parâmetros são aplicados em tempo real diretamente pelo just_audio, sem precisar gerar arquivo. O usuário arrasta o slider e ouve a mudança na hora:
+dart — preview ao vivo
+final player = AudioPlayer();
+await player.setFilePath(project.path);
+ 
+// velocidade (1.0 = normal) — não altera o pitch
+await player.setSpeed(1.25);
+ 
+// pitch (1.0 = normal) — sobe/desce o tom
+await player.setPitch(1.5);
+ 
+// volume (0.0 a 1.0)
+await player.setVolume(0.8);
+ 
+await player.play();
+
+Por que só estes três no preview?
+O just_audio expõe setSpeed/setPitch/setVolume que rodam em tempo real sem custo de implementação.
+Os demais efeitos (reverb, delay, EQ...) não têm preview ao vivo na Fase 1 — eles são aplicados no momento da exportação via ffmpeg.
+6.4 Efeitos via ffmpeg (offline)
+Os efeitos mais pesados são montados como uma cadeia de filtros do ffmpeg e aplicados quando o usuário exporta. A tabela mostra o filtro correspondente a cada efeito:
+Efeito
+Filtro ffmpeg
+Parâmetro principal
+Delay / eco
+aecho=0.8:0.9:1000:0.3
+tempo (ms) e decaimento
+Reverb
+aecho ou afir (impulse response)
+tamanho da sala
+Equalizador
+equalizer=f=1000:width_type=o:g=5
+frequência e ganho (dB)
+Low-pass
+lowpass=f=3000
+frequência de corte
+High-pass
+highpass=f=200
+frequência de corte
+Distorção
+acrusher ou aexciter
+intensidade
+Reverse
+areverse
+—
+Normalização
+loudnorm
+alvo LUFS
+Fade in/out
+afade=t=in:d=2, afade=t=out
+duração (s)
+
+Exemplo de comando combinando vários filtros em uma única passada (a ordem importa — os filtros são aplicados em sequência):
+dart — cadeia de efeitos ffmpeg
+final cmd = '-i "${input}" '
+  '-af "highpass=f=200,'
+  'equalizer=f=1000:width_type=o:g=4,'
+  'aecho=0.8:0.9:1000:0.3,'
+  'loudnorm" '
+  '-c:a libmp3lame -q:a 2 "${output}"';
+ 
+await FFmpegKit.execute(cmd);
+
+6.5 Visualização (forma de onda e FFT)
+A forma de onda usa o pacote audio_waveforms, que extrai a amplitude do arquivo. O visualizador de frequências em tempo real usa a fftea para calcular a FFT sobre blocos do áudio que está tocando, gerando as barras de espectro.
+    • Forma de onda: gerada uma vez ao carregar o arquivo e desenhada num CustomPainter.
+    • Espectro ao vivo: a cada bloco de amostras, aplica-se a FFT e mapeiam-se as magnitudes em barras.
+6.6 Exportação e Compartilhamento
+Na exportação, o app monta a cadeia de filtros a partir da lista de efeitos ativos, roda o ffmpeg e salva no formato escolhido. Em seguida, oferece o compartilhamento:
+    4. Construir a string de filtros a partir do effect_chain do projeto.
+    5. Definir codec/qualidade conforme o formato (libmp3lame, pcm_s16le para WAV, flac).
+    6. Rodar FFmpegKit.execute e monitorar o progresso.
+    7. Salvar em path_provider e abrir o share_plus para redes/sociais.
+
+Checklist de conclusão da Fase 1
+Importar, reproduzir e ver a forma de onda de um arquivo.
+Ajustar velocidade, pitch e volume ouvindo ao vivo.
+Aplicar reverb/delay/EQ/filtros/distorção/reverse na exportação.
+Exportar em MP3/WAV, salvar presets, desfazer/refazer e compartilhar.
+
+7. Implementação Detalhada — Fase 2 (Tempo Real)
+A Fase 2 substitui o processamento offline por um motor de áudio nativo de baixa latência, permitindo que todos os efeitos tenham preview ao vivo. O DSP passa a ser escrito em C++ e compartilhado entre o preview e a exportação, garantindo que o som seja idêntico nos dois.
+7.1 Visão Geral do Motor Nativo
+O fluxo de áudio em tempo real funciona como um pipeline contínuo: o motor nativo puxa blocos pequenos de amostras (ex.: 256 frames), passa cada bloco pela cadeia de efeitos em C++, e entrega o resultado à saída de áudio. Tudo isso roda dezenas de vezes por segundo.
+Pipeline de áudio em tempo real
+Fonte (arquivo/mic)
+        │
+        ▼
+  [ buffer de entrada ]   ← blocos de ~256 frames
+        │
+        ▼
+  [ cadeia DSP em C++ ]   ← reverb → delay → EQ → ...
+        │
+        ▼
+  [ saída Oboe / CoreAudio ]   ← baixa latência
+
+7.2 Camada Nativa por Plataforma
+Plataforma
+API de áudio
+Por quê
+Android
+Oboe (C++)
+Acesso a AAudio/OpenSL ES com latência mínima; mantido pelo Google.
+iOS
+AVAudioEngine / Core Audio
+Caminho de baixa latência nativo do iOS; nó de processamento customizado.
+Compartilhado
+Núcleo DSP em C++
+Os algoritmos de efeito ficam aqui, chamados pelas duas plataformas e pela exportação.
+
+7.3 Ponte Flutter ↔ C++ (FFI)
+O Flutter conversa com o C++ através do dart:ffi. A interface deve ser enxuta: criar o motor, ajustar parâmetros (que mudam ao vivo conforme o usuário arrasta os sliders) e controlar play/stop.
+cpp — interface FFI
+// lado C++ exposto com extern "C"
+extern "C" {
+  void*  engine_create(int sampleRate, int framesPerBurst);
+  void   engine_set_param(void* eng, int effectId, int paramId, float value);
+  void   engine_play(void* eng);
+  void   engine_stop(void* eng);
+  void   engine_destroy(void* eng);
+}
+
+dart — chamando o C++ via FFI
+// lado Dart — carregando a lib nativa
+final dylib = DynamicLibrary.open(
+    Platform.isAndroid ? 'libaudioengine.so' : 'AudioEngine.framework/AudioEngine');
+ 
+final setParam = dylib.lookupFunction<
+    Void Function(Pointer<Void>, Int32, Int32, Float),
+    void Function(Pointer<Void>, int, int, double)>('engine_set_param');
+ 
+// chamado em tempo real ao mover um slider:
+setParam(engine, EffectId.reverb, ParamId.roomSize, 0.7);
+
+Regra de ouro do tempo real
+O callback de áudio (que processa cada bloco) NUNCA pode alocar memória, travar mutex longo ou fazer I/O — isso causa estalos e cortes no som.
+Mudanças de parâmetro vindas da UI devem ser passadas de forma thread-safe (ex.: variáveis atômicas ou fila lock-free).
+7.4 DSP Compartilhado (preview = export)
+Cada efeito é uma classe C++ com um método process() que opera sobre um buffer. Em tempo real, recebe blocos pequenos; na exportação, recebe o arquivo inteiro em blocos sequenciais. O mesmo código, os mesmos coeficientes — portanto o mesmo som.
+cpp — efeito reutilizável
+class Reverb {
+public:
+  void setRoomSize(float v);   // chamado pela UI (thread-safe)
+  void process(float* buffer, int numFrames);  // mesmo método
+};
+ 
+// tempo real:  process(bloco256, 256)  — repetido continuamente
+// exportação:  process(blocoN, N)      — varrendo o arquivo todo
+
+7.5 Gravação, Overdub e Múltiplas Faixas
+Com o motor nativo, abre-se o caminho para recursos que dependem de sincronização precisa de áudio:
+    • Gravação via microfone: a entrada do dispositivo entra no mesmo pipeline.
+    • Overdub: tocar faixas existentes enquanto grava uma nova, alinhadas por amostra.
+    • Múltiplas faixas: somar (mixar) vários buffers antes da saída, cada um com seu volume/pan/efeitos.
+    • Automação: variar parâmetros ao longo do tempo, lidos pelo motor a cada bloco.
+7.6 Bibliotecas C++ Recomendadas
+Necessidade
+Biblioteca
+Licença / observação
+Pitch e tempo
+SoundTouch
+LGPL — boa para começar.
+Pitch/tempo alta qualidade
+Rubber Band
+Comercial paga para produto fechado.
+Suite de efeitos mobile
+Superpowered
+Otimizada para mobile; avaliar licenciamento.
+Saída de baixa latência (Android)
+Oboe
+Open source, mantida pelo Google.
+
+Checklist de conclusão da Fase 2
+Motor Oboe (Android) e Core Audio (iOS) tocando via FFI.
+Efeitos principais portados para C++, com preview ao vivo idêntico ao export.
+Gravação, overdub e múltiplas faixas funcionando em sincronia.
+Chorus, flanger, phaser, bitcrusher, compressor e automação ao vivo.

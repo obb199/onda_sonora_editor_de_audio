@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:just_audio/just_audio.dart' hide AudioEffect;
 import '../core/audio_player_service.dart';
+import '../models/audio_effect.dart';
 import '../models/audio_project.dart';
 
 // ─── Player service singleton
@@ -58,12 +59,12 @@ class AudioProjectNotifier extends StateNotifier<AudioProject?> {
     state = state!.copyWith(volume: volume);
   }
 
-  void addEffect(dynamic effect) {
+  void addEffect(AudioEffect effect) {
     if (state == null) return;
     state = state!.withEffect(effect);
   }
 
-  void updateEffect(int index, dynamic updated) {
+  void updateEffect(int index, AudioEffect updated) {
     if (state == null) return;
     state = state!.updateEffect(index, updated);
   }

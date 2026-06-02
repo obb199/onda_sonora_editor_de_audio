@@ -16,11 +16,17 @@ android {
 
     defaultConfig {
         applicationId = "com.ondasonora.onda_sonora"
-        // just_audio requires API 21+; target the latest stable Android
-        minSdk = flutter.minSdkVersion
+        // ffmpeg_kit_flutter_new requires API 24+
+        minSdk = 24
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
     buildTypes {
