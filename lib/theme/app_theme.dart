@@ -49,25 +49,30 @@ class AppTheme {
   AppTheme._();
 
   static TextTheme _buildTextTheme() {
-    return GoogleFonts.interTextTheme(
-      const TextTheme(
-        displayLarge: TextStyle(color: AppColors.textPrimary),
-        displayMedium: TextStyle(color: AppColors.textPrimary),
-        displaySmall: TextStyle(color: AppColors.textPrimary),
-        headlineLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-        headlineMedium: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-        headlineSmall: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-        titleLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-        titleMedium: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-        titleSmall: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-        bodyLarge: TextStyle(color: AppColors.textPrimary),
-        bodyMedium: TextStyle(color: AppColors.textSecondary),
-        bodySmall: TextStyle(color: AppColors.textDisabled),
-        labelLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-        labelMedium: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-        labelSmall: TextStyle(color: AppColors.textDisabled),
-      ),
+    const base = TextTheme(
+      displayLarge: TextStyle(color: AppColors.textPrimary),
+      displayMedium: TextStyle(color: AppColors.textPrimary),
+      displaySmall: TextStyle(color: AppColors.textPrimary),
+      headlineLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+      headlineMedium: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+      headlineSmall: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+      titleLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+      titleMedium: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+      titleSmall: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+      bodyLarge: TextStyle(color: AppColors.textPrimary),
+      bodyMedium: TextStyle(color: AppColors.textSecondary),
+      bodySmall: TextStyle(color: AppColors.textDisabled),
+      labelLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+      labelMedium: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+      labelSmall: TextStyle(color: AppColors.textDisabled),
     );
+    // google_fonts fetches the font over the network at runtime; if that fails
+    // on a real device, fall back to the platform default instead of throwing.
+    try {
+      return GoogleFonts.interTextTheme(base);
+    } catch (_) {
+      return base;
+    }
   }
 
   static ThemeData get dark {

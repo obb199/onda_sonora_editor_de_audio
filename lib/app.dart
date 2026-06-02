@@ -34,6 +34,11 @@ class _AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<_AppShell> {
   int _selectedIndex = 0;
 
+  // Tabs are built lazily: a tab is only instantiated the first time it is
+  // opened. This keeps native-heavy screens (Recorder/Mixer) from spinning up
+  // microphone/audio plugins at app launch, which can crash on real devices.
+  final Set<int> _visited = {0};
+
   static const _tabs = [
     HomeScreen(),
     MixerScreen(),
@@ -53,10 +58,21 @@ class _AppShellState extends ConsumerState<_AppShell> {
     // Watch locale so nav labels rebuild on language change
     ref.watch(settingsProvider);
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _tabs),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          for (var i = 0; i < _tabs.length; i++)
+            _visited.contains(i)
+                ? _tabs[i]
+                : const SizedBox.shrink(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+        onDestinationSelected: (i) => setState(() {
+          _selectedIndex = i;
+          _visited.add(i);
+        }),
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.home_outlined),

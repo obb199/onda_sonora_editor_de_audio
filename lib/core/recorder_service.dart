@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 
 /// Wraps the `record` package for microphone capture.
@@ -22,7 +23,13 @@ class RecorderService {
   Stream<Amplitude> get amplitudeStream =>
       _recorder.onAmplitudeChanged(const Duration(milliseconds: 100));
 
-  Future<bool> hasPermission() => _recorder.hasPermission();
+  /// Requests the microphone permission via permission_handler (which reliably
+  /// shows the system dialog), then confirms with the record plugin.
+  Future<bool> hasPermission() async {
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) return false;
+    return _recorder.hasPermission();
+  }
 
   Future<String> _newRecordingPath() async {
     final dir = await getApplicationDocumentsDirectory();

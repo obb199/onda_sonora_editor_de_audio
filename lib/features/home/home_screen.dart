@@ -129,15 +129,15 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Future<void> _pickFile(BuildContext context, WidgetRef ref) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.audio,
-      allowMultiple: false,
-    );
-    if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
-    if (file.path == null) return;
-
     try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.audio,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      if (file.path == null) return;
+
       await ref
           .read(audioProjectProvider.notifier)
           .loadFile(file.path!, file.name);

@@ -48,25 +48,37 @@ final recorderProvider =
 });
 
 class RecorderNotifier extends StateNotifier<RecorderState> {
-  RecorderNotifier(this._svc) : super(const RecorderState()) {
-    _ampSub = _svc.amplitudeStream.listen((amp) {
-      if (!mounted) return;
-      final normalized = ((amp.current + 60) / 60).clamp(0.0, 1.0);
-      final elapsed = state.isRecording
-          ? DateTime.now().millisecondsSinceEpoch - _startMs
-          : state.durationMs;
-      state = state.copyWith(amplitude: normalized, durationMs: elapsed);
-    });
-  }
+  RecorderNotifier(this._svc) : super(const RecorderState());
 
   final RecorderService _svc;
   int _startMs = 0;
-  late StreamSubscription<dynamic> _ampSub;
+  StreamSubscription<dynamic>? _ampSub;
+
+  /// Subscribe to amplitude updates only while a recording is active.
+  /// Polling the native recorder for amplitude before recording has started
+  /// throws on some real Android devices, so we never listen at construction.
+  void _listenAmplitude() {
+    _ampSub ??= _svc.amplitudeStream.listen(
+      (amp) {
+        if (!mounted) return;
+        final normalized = ((amp.current + 60) / 60).clamp(0.0, 1.0);
+        final elapsed = state.isRecording
+            ? DateTime.now().millisecondsSinceEpoch - _startMs
+            : state.durationMs;
+        state = state.copyWith(amplitude: normalized, durationMs: elapsed);
+      },
+      onError: (_) {
+        // Ignore amplitude errors — they must never crash the app.
+      },
+      cancelOnError: false,
+    );
+  }
 
   Future<bool> start() async {
     final hasPermission = await _svc.hasPermission();
     if (!hasPermission) return false;
     await _svc.start();
+    _listenAmplitude();
     _startMs = DateTime.now().millisecondsSinceEpoch;
     state = const RecorderState(status: RecorderStatus.recording);
     return true;
@@ -97,7 +109,7 @@ class RecorderNotifier extends StateNotifier<RecorderState> {
 
   @override
   void dispose() {
-    _ampSub.cancel();
+    _ampSub?.cancel();
     super.dispose();
   }
 }

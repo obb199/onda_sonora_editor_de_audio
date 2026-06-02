@@ -34,6 +34,13 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // AGP 9 enables R8 by default, which strips the reflection-loaded
+            // GeneratedPluginRegistrant and plugin classes — breaking every
+            // native plugin (file_picker, path_provider, record, etc.) in
+            // release builds. Disable shrinking/obfuscation to keep them.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

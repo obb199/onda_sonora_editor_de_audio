@@ -52,6 +52,13 @@ dependency_overrides:
   record_linux:
     path: packages/record_linux_stub
 
+  # path_provider_android 2.3.x switched its native implementation to
+  # package:jni (libdartjni.so). On some real devices (e.g. Samsung A14 /
+  # Android 15, arm64) the JNI FindClass call segfaults at startup in release
+  # (AOT) builds, crashing the app before the first frame. 2.2.23 is the last
+  # release using the method-channel implementation, which works reliably.
+  path_provider_android: 2.2.23
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
